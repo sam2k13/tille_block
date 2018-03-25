@@ -1,0 +1,13 @@
+Horizontal Shooters: A, E, I, O, U
+Vertical Shooters: D, G, L, N, R, S, T
+Cross Shooter: B, H, K, W, Y
+X Shooters: C, F, M, V
+Allway Shooters: J, Q, X, Z  
+
+
+Negative Diagonal Shooters: A, O
+Postive Diagonal Shooters: E, I, U
+Horizontal Shooters: C, H, K, L, N, R, S
+Vertical Shooters: B, D, F, F, M, P, T
+Cross Shooter: Q, W, Y
+X Shooters: V, X, Z

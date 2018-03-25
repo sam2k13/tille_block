@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Index</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+</head>
+<body>
+  <h2>Start a new game</h2>
+  <form id="newGameForm" action="/startNewGame" method="post">
+    Board Size:
+    <input type="text" name="boardSize" value="15"></br>
+    Hand Size:
+    <input type="text" name="handSize" value="7"></br>
+    Choose Game Type:
+    <select name="gameType">
+      <option value="words">Letter Tiles</option>
+      <option value="numbers">Number Tiles</option>
+    </select></br>
+    Block By Light Intersection:
+    <select name="blockByLightIntersection">
+      <option value="0">Send Lights Through Other Lights</option>
+      <option value="1">Don't Send Lights Through Other Lights</option>
+    </select></br>
+    Number of Players:
+    <input type="text" name="numPlayers" value="2"></br>
+    Team Size:
+    <input type="text" name="teamSize" value="1"></br>
+    <input type="submit" value="Submit">
+  </form>
+  <h2>Join existing game</h2>
+  <div id="players">
+  </div>
+  <h2>Just Watch</h2>
+  <div id="watch">
+  </div>
+</body>
+<script>
+  $.post("/getCurrentGamePlayers", function(players){
+    if (players != null){
+      for (var i = 0; i < players.length; i++){
+        var playerLink = document.createElement("a");
+        playerLink.href = "/play?player=" + i;
+        playerLink.innerHTML = players[i].name;
+        $("#players").append(playerLink);
+        $("#players").append("</br>");
+      }
+
+      var watchLink = document.createElement("a");
+      watchLink.href = "/watch";
+      watchLink.innerHTML = "Watch Live";
+      $("#watch").append(watchLink);
+      $("#watch").append("</br>");
+    }
+  });
+</script>
+</html>

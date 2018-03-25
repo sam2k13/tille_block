@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>Index</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="gameboard" style="height: 95%; width: 64%; margin-left: 3%; margin-right: 3%; margin-top: 15px; position: absolute;">
+
+  </div>
+  <div id="scoreboard" style="height: 100%; width: 29%; left: 70%; position: absolute;">
+    <h2>Now Playing: <span id="currentPlayer"></span></h2>
+    <table class="table table-bordered" style="font-size: 40px; width:100%; text-align: left;" >
+      <thead>
+        <tr>
+          <th>Team Color</th>
+          <th>Players</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody id="score-table">
+      </tbody>
+  </table>
+  </div>
+</body>
+<script>
+
+
+$(function() {
+
+  function drawGameBoard(currentGame){
+    $("#gameboard").empty();
+    console.log(currentGame);
+
+    var canvas = document.createElement("canvas");
+    var ctx = canvas.getContext("2d");
+
+    var boardWidth = $("#gameboard").innerWidth();
+    var boardHeight = $("#gameboard").innerHeight();
+
+    if (boardWidth < boardHeight){
+      boardHeight = boardWidth;
+    }
+    else{
+      boardWidth = boardHeight;
+    }
+
+    canvas.width = boardWidth
+    canvas.height = boardHeight;
+
+    $("#gameboard").append(canvas);
+
+    drawBoard(canvas, currentGame.boardSize);
+
+    // draw squares on the board
+
+    var tokenPositions = {};
+    var tilePositions = [];
+    var tilePositionsByColor = {};
+    var tokenLines = {};
+
+    for(var i = 0; i < currentGame.moves.length; i++){
+      var move = currentGame.moves[i];
+      if (move.type == "tiles"){
+
+        // draw light brown scrabble tiles
+        for (var l = 0; l < move.tilesPlayed.length; l++){
+          var tile = move.tilesPlayed[l];
+          var position = [parseInt(tile.position[0]), parseInt(tile.position[1])];
+          tilePositions.push(position);
+
+          var color = currentGame.players[parseInt(move.playerIndex)].color;
+
+          if (!(color in tilePositionsByColor)){
+            tilePositionsByColor[color] = [];
+          }
+
+          tilePositionsByColor[color].push(position);
+
+          drawTile(canvas, currentGame.boardSize, position, tile.tile, color);
+        }
+      }
+      else if (move.type == "token"){
+
+        var touchingTileLines = [];
+        {
+          var previousMove = currentGame.moves[i - 1];
+          for (var l = 0; l < previousMove.tilesPlayed.length; l++){
+            var tile = previousMove.tilesPlayed[l];
+            tile.position = [parseInt(tile.position[0]), parseInt(tile.position[1])];
+            // check if the token is touch the tile
+            if (tile.position[0] === move.position[0] && Math.abs(move.position[1] - tile.position[1]) === 1){
+              console.log("touching tile");
+              touchingTileLines = touchingTileLines.concat(tile.lines);
+            }
+
+            if (tile.position[1] === move.position[1] && Math.abs(move.position[0] - tile.position[0]) === 1){
+              console.log("touching tile");
+
+              touchingTileLines = touchingTileLines.concat(tile.lines);
+            }
+          }
+        }
+
+        if (touchingTileLines.length > 0){
+          for (var c = 0; c < i; c+=2){
+            var previousMove = currentGame.moves[c];
+
+            for (var l = 0; l < previousMove.tilesPlayed.length; l++){
+              var tile = previousMove.tilesPlayed[l];
+              tile.position = [parseInt(tile.position[0]), parseInt(tile.position[1])];
+              // check if the token is touch the tile
+              if (tile.position[0] === move.position[0] && Math.abs(move.position[1] - tile.position[1]) === 1){
+                console.log("touching tile");
+                touchingTileLines = touchingTileLines.concat(tile.lines);
+              }
+
+              if (tile.position[1] === move.position[1] && Math.abs(move.position[0] - tile.position[0]) === 1){
+                console.log("touching tile");
+
+                touchingTileLines = touchingTileLines.concat(tile.lines);
+              }
+
+            }
+          }
+        }
+
+        // find the last played token positions
+        var color = currentGame.players[move.playerIndex].color;
+        tokenPositions[color] = move.position;
+        tokenLines[color] = touchingTileLines;
+      }
+    }
+
+    console.log(tokenLines);
+
+    var tokenLightPositions = [];
+    var tokenLights = {};
+
+    for (var token in tokenPositions){
+      var opponentTilePositions = [];
+      var opponentTokenPositions = [];
+      for (var opponentColor in tilePositionsByColor){
+        if (opponentColor !== token){
+          opponentTilePositions = opponentTilePositions.concat(tilePositionsByColor[opponentColor]);
+        }
+      }
+
+      for (var opponentColor in tokenPositions){
+        if (opponentColor !== token){
+          opponentTokenPositions.push(tokenPositions[opponentColor]);
+        }
+      }
+
+      var lightTokenIntersections = [];
+      if(tokenLines[token].includes(0) || tokenLines[token].includes('0')){
+        lightTokenIntersections = lightTokenIntersections.concat(getHorizontalIntersections(currentGame.boardSize, currentGame.moves, token, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions));
+      }
+      if(tokenLines[token].includes(1) || tokenLines[token].includes('1')){
+        lightTokenIntersections = lightTokenIntersections.concat(getVerticalIntersections(currentGame.boardSize, currentGame.moves, token, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions));
+      }
+      if(tokenLines[token].includes(2) || tokenLines[token].includes('2')){
+        lightTokenIntersections = lightTokenIntersections.concat(getNegativeDiagonalIntersections(currentGame.boardSize,  currentGame.moves, token,tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions));
+      }
+      if(tokenLines[token].includes(3) || tokenLines[token].includes('3')){
+        lightTokenIntersections = lightTokenIntersections.concat(getPositiveDiagonalIntersections(currentGame.boardSize,  currentGame.moves, token,tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions));
+      }
+
+      tokenLights[token] = lightTokenIntersections;
+
+      tokenLightPositions = tokenLightPositions.concat(lightTokenIntersections);
+      drawToken(canvas, currentGame.boardSize, tokenPositions[token], token);
+    }
+
+    if (currentGame.blockByLightIntersection){
+      tokenLightPositions = [];
+      var finalTokenLights = {};
+      for (var token in tokenPositions){
+
+        var opponentTilePositions = [];
+        var opponentTokenPositions = [];
+        var opponentLightPositions = [];
+        for (var opponentColor in tilePositionsByColor){
+          if (opponentColor !== token){
+            opponentTilePositions = opponentTilePositions.concat(tilePositionsByColor[opponentColor]);
+          }
+        }
+
+        for (var opponentColor in tokenPositions){
+          if (opponentColor !== token){
+            opponentTokenPositions.push(tokenPositions[opponentColor]);
+          }
+        }
+
+        for (var opponentColor in tokenLights){
+          if (opponentColor !== token){
+            opponentLightPositions = opponentLightPositions.concat(tokenLights[opponentColor]);
+          }
+        }
+
+        console.log(opponentLightPositions);
+
+        var lightTokenIntersections = [];
+        if(tokenLines[token].includes(0) || tokenLines[token].includes('0')){
+          lightTokenIntersections = lightTokenIntersections.concat(getHorizontalIntersections(currentGame.boardSize, currentGame.moves, token, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions));
+        }
+        if(tokenLines[token].includes(1) || tokenLines[token].includes('1')){
+          lightTokenIntersections = lightTokenIntersections.concat(getVerticalIntersections(currentGame.boardSize, currentGame.moves, token, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions));
+        }
+        if(tokenLines[token].includes(2) || tokenLines[token].includes('2')){
+          lightTokenIntersections = lightTokenIntersections.concat(getNegativeDiagonalIntersections(currentGame.boardSize,  currentGame.moves, token,tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions));
+        }
+        if(tokenLines[token].includes(3) || tokenLines[token].includes('3')){
+          lightTokenIntersections = lightTokenIntersections.concat(getPositiveDiagonalIntersections(currentGame.boardSize,  currentGame.moves, token,tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions));
+        }
+
+        console.log(lightTokenIntersections);
+
+        finalTokenLights[token] = lightTokenIntersections;
+        console.log(finalTokenLights);
+        tokenLightPositions = tokenLightPositions.concat(lightTokenIntersections);
+      }
+      tokenLights = finalTokenLights;
+    }
+
+    var lightIntersections = getTokenLightIntersections(tokenLightPositions)
+
+    for (var token in tokenLights){
+      for (var tokenIndex in tokenLights[token]){
+        var position = tokenLights[token][tokenIndex];
+        if (!includesPosition(lightIntersections, position)){
+          drawLight(canvas, currentGame.boardSize, position, token);
+        }
+      }
+    }
+
+    for (var index in lightIntersections){
+      drawIntersection(canvas, currentGame.boardSize, lightIntersections[index]);
+    }
+  }
+
+  function drawTile(canvas, boardSize, position, letter, color){
+    ctx = canvas.getContext("2d");
+    var boardWidth = canvas.width;
+    var tileSize = boardWidth / boardSize * .9;
+    var tilePadding = boardWidth / boardSize * .05;
+    var fromLeft = (position[0] / boardSize) * (boardWidth)  + tilePadding;
+    var fromTop = (position[1] / boardSize) * (boardWidth) + tilePadding;
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.rect(fromLeft, fromTop, tileSize, tileSize);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.fillStyle = "black";
+    ctx.font = Math.floor(tileSize) + "px arial";
+    var textLeft = (position[0] / boardSize) * (boardWidth) + (boardWidth / boardSize * .2);
+    var textTop = ((position[1] + 1) / boardSize) * (boardWidth) - (boardWidth / boardSize * .2);
+
+    ctx.fillText(letter, textLeft, textTop)
+  }
+
+  function drawToken(canvas, boardSize, position, color){
+    var ctx = canvas.getContext("2d");
+    var boardWidth = canvas.width;
+    console.log(boardSize);
+
+    var fromLeft = (position[0] / boardSize) * (boardWidth)  + (boardWidth / boardSize * .2);
+    var fromTop = (position[1] / boardSize) * (boardWidth) + (boardWidth / boardSize * .2);
+
+    var tokenSize = boardWidth / boardSize * .6;
+    ctx.beginPath();
+    ctx.rect(fromLeft, fromTop, tokenSize, tokenSize);
+    console.log(fromLeft, fromTop, tokenSize, tokenSize);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  function drawLight(canvas, boardSize, position, color){
+    var boardWidth = canvas.width;
+    var halfWidth = (boardWidth / boardSize) / 2;
+    var fromLeft = (position[0] / boardSize) * (boardWidth)  + halfWidth;
+    var fromTop = (position[1] / boardSize) * (boardWidth) + halfWidth;
+    var radius = halfWidth * .75;
+    var x = fromLeft,
+      y = fromTop,
+      // Radii of the white glow.
+      innerRadius = radius / 4,
+      outerRadius = radius,
+      // Radius of the entire circle.
+      radius = radius;
+
+    var gradient = ctx.createRadialGradient(x, y, innerRadius, x, y, outerRadius);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, 'white');
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+
+    ctx.fillStyle = gradient;
+    ctx.fill();
+  }
+
+  function drawIntersection(canvas, boardSize, position){
+    var boardWidth = canvas.width;
+    var halfWidth = (boardWidth / boardSize) / 2;
+    var fromLeft = (position[0] / boardSize) * (boardWidth)  + halfWidth;
+    var fromTop = (position[1] / boardSize) * (boardWidth) + halfWidth;
+    var radius = halfWidth * .75;
+    var x = fromLeft,
+      y = fromTop,
+      // Radii of the white glow.
+      innerRadius = radius / 4,
+      outerRadius = radius,
+      // Radius of the entire circle.
+      radius = radius;
+
+    var gradient = ctx.createRadialGradient(x, y, innerRadius, x, y, outerRadius);
+    gradient.addColorStop(0, "black");
+    gradient.addColorStop(1, 'white');
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+
+    ctx.fillStyle = gradient;
+    ctx.fill();
+  }
+
+  function getTokenLightIntersections(positions){
+    var intersections = [];
+    for (var i = 0; i < positions.length; i++){
+      for (var t = 0; t < positions.length; t++){
+        if (i !== t && positions[i][0] === positions[t][0] && positions[i][1] === positions[t][1]){
+          console.log("here");
+          var alreadyAdded = false;
+          for (var s = 0; s < intersections.length; s++){
+            if( intersections[s][0] === positions[i][0] && intersections[s][1] === positions[i][1]){
+              alreadyAdded = true;
+              break;
+            }
+          }
+          if (!alreadyAdded){
+            intersections.push(positions[i]);
+          }
+
+        }
+      }
+    }
+    return intersections;
+  }
+
+
+  function getPositiveDiagonalIntersections(boardSize, moves, color, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions){
+    var intersectionPositions = [];
+    var position = tokenPositions[color];
+    console.log(color);
+    // subtract the offset from the y position
+    var offset = (boardSize - 1 - position[1]) - position[0];
+    for (var i = position[0]; i < boardSize; i++){
+      if (boardSize - i - 1 - offset >= 0 && boardSize - i - 1 - offset < boardSize){
+        var intersectionPosition = [i, boardSize - i - 1 - offset];
+        if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+          break;
+        }
+        if(opponentLightPositions){
+          //console.log(opponentLightPositions, intersectionPosition);
+          if (includesPosition(opponentLightPositions, intersectionPosition)){
+            intersectionPositions.push(intersectionPosition);
+            break;
+          }
+        }
+
+        if (includesPosition(tilePositions, intersectionPosition) || position[0] === i){
+          continue;
+        }
+        intersectionPositions.push(intersectionPosition);
+      }
+    }
+    for (var i = position[0]; i >= 0; i--){
+      if (boardSize - i - 1 - offset >= 0 && boardSize - i - 1 - offset < boardSize){
+        var intersectionPosition = [i, boardSize - i - 1 - offset];
+        if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+          break;
+        }
+        if(opponentLightPositions){
+          //console.log(opponentLightPositions, intersectionPosition);
+          if (includesPosition(opponentLightPositions, intersectionPosition)){
+            intersectionPositions.push(intersectionPosition);
+            break;
+          }
+        }
+        if (includesPosition(tilePositions, intersectionPosition) || position[0] === i){
+          continue;
+        }
+        intersectionPositions.push(intersectionPosition);
+      }
+    }
+    return intersectionPositions;
+  }
+
+  function getNegativeDiagonalIntersections(boardSize, moves, color, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions){
+    var intersectionPositions = [];
+    var position = tokenPositions[color];
+    // subtract the offset from the y position
+    var offset = position[0] - position[1];
+    for (var i = position[0]; i < boardSize; i++){
+      if (i - offset >= 0 && i - offset < boardSize){
+        var intersectionPosition = [i, i - offset];
+        if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+          break;
+        }
+        if(opponentLightPositions){
+          if (includesPosition(opponentLightPositions, intersectionPosition)){
+            intersectionPositions.push(intersectionPosition);
+            break;
+          }
+        }
+        if (includesPosition(tilePositions, intersectionPosition) || position[0] === i){
+          continue;
+        }
+        intersectionPositions.push(intersectionPosition);
+      }
+    }
+    for (var i = position[0]; i >= 0; i--){
+      if (i - offset >= 0 && i - offset < boardSize){
+        var intersectionPosition = [i, i - offset];
+        console.log(intersectionPosition, opponentTokenPositions);
+        if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+          console.log("in here");
+          break;
+        }
+        if(opponentLightPositions){
+          if (includesPosition(opponentLightPositions, intersectionPosition)){
+            intersectionPositions.push(intersectionPosition);
+            break;
+          }
+        }
+        if (includesPosition(tilePositions, intersectionPosition) || position[0] === i){
+          continue;
+        }
+        intersectionPositions.push(intersectionPosition);
+      }
+    }
+    return intersectionPositions;
+  }
+
+  // returns a list of all positions that dont intersect with a token
+  function getHorizontalIntersections(boardSize, position, color, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions){
+    var intersectionPositions = [];
+    var position = tokenPositions[color];
+    for (var i = position[0]; i < boardSize; i++){
+      var intersectionPosition = [i, position[1]];
+      if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+        break;
+      }
+      if(opponentLightPositions){
+        if (includesPosition(opponentLightPositions, intersectionPosition)){
+          intersectionPositions.push(intersectionPosition);
+          break;
+        }
+      }
+      if (includesPosition(tilePositions, intersectionPosition) || position[0] === i){
+        continue;
+      }
+      intersectionPositions.push(intersectionPosition);
+    }
+    for (var i = position[0]; i >= 0; i--){
+      var intersectionPosition = [i, position[1]];
+      if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+        break;
+      }
+      if(opponentLightPositions){
+        if (includesPosition(opponentLightPositions, intersectionPosition)){
+          intersectionPositions.push(intersectionPosition);
+          break;
+        }
+      }
+      if (includesPosition(tilePositions, intersectionPosition) || position[0] === i){
+        continue;
+      }
+      intersectionPositions.push(intersectionPosition);
+    }
+    return intersectionPositions;
+  }
+
+  function getVerticalIntersections(boardSize, position, color, tilePositions, opponentTilePositions, tokenPositions, opponentTokenPositions, opponentLightPositions){
+    var intersectionPositions = [];
+    var position = tokenPositions[color];
+    for (var i = position[1]; i < boardSize; i++){
+      var intersectionPosition = [position[0], i];
+      if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+        break;
+      }
+      if(opponentLightPositions){
+        if (includesPosition(opponentLightPositions, intersectionPosition)){
+          intersectionPositions.push(intersectionPosition);
+          break;
+        }
+      }
+      if (includesPosition(tilePositions, intersectionPosition) || position[1] === i){
+        continue;
+      }
+      intersectionPositions.push(intersectionPosition);
+    }
+    for (var i = position[1]; i >= 0; i--){
+      var intersectionPosition = [position[0], i];
+      if (includesPosition(opponentTilePositions, intersectionPosition) || includesPosition(opponentTokenPositions, intersectionPosition)){
+        break;
+      }
+      if(opponentLightPositions){
+        if (includesPosition(opponentLightPositions, intersectionPosition)){
+          intersectionPositions.push(intersectionPosition);
+          break;
+        }
+      }
+      if (includesPosition(tilePositions, intersectionPosition) || position[1] === i){
+        continue;
+      }
+      intersectionPositions.push(intersectionPosition);
+    }
+    return intersectionPositions;
+  }
+
+  function includesPosition(array, position){
+    for (var i = 0; i < array.length; i++){
+      if (array[i][0] === position[0] && array[i][1] === position[1]){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function includesPosition(array, position){
+    for (var i = 0; i < array.length; i++){
+      if (array[i][0] === position[0] && array[i][1] === position[1]){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function drawBoard(canvas, boardSize){
+    var boardWidth = canvas.width;
+    var boardHeight = canvas.height;
+    ctx = canvas.getContext("2d");
+    // draw board frame
+    ctx.beginPath();
+    ctx.lineWidth=3;
+    ctx.moveTo(0,0);
+    ctx.lineTo(boardWidth,0);
+    ctx.lineTo(boardWidth,boardHeight);
+    ctx.lineTo(0,boardHeight);
+    ctx.lineTo(0,0);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.lineWidth=1;
+    for(var i = 0; i < boardSize; i++){
+      var distance = (i / boardSize) * (boardWidth);
+      ctx.moveTo(distance,0);
+      ctx.lineTo(distance,boardHeight);
+      ctx.moveTo(0,distance);
+      ctx.lineTo(boardWidth,distance);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // draw star in middle
+    ctx.beginPath();
+    ctx.lineWidth=3;
+    var halfway = Math.ceil(boardSize / 2);
+    var halfWidth = (boardWidth / boardSize) / 2;
+    var halfwayDistance = (halfway / boardSize) * (boardWidth) - halfWidth;
+
+    ctx.moveTo(halfwayDistance, halfwayDistance + halfWidth / 2);
+    ctx.lineTo(halfwayDistance - halfWidth / 2, halfwayDistance);
+    ctx.lineTo(halfwayDistance ,halfwayDistance - halfWidth / 2);
+    ctx.lineTo(halfwayDistance + halfWidth / 2, halfwayDistance);
+    ctx.lineTo(halfwayDistance, halfwayDistance + halfWidth / 2);
+    ctx.fillStyle = "#b9b9b9"
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawScoreBoard(currentGame){
+
+    $("#score-table").empty();
+
+    $("#currentPlayer").text(currentGame.players[currentGame.currentPlayer].name);
+    var teams = {};
+    for (var i = 0; i < currentGame.players.length; i++){
+      var player = currentGame.players[i];
+      if (typeof teams[player.color] === "undefined") {
+         teams[player.color] = {};
+         teams[player.color].players = [];
+         teams[player.color].playerIndexes = [];
+      }
+      teams[player.color].playerIndexes.push(i);
+      teams[player.color].players.push(player.name);
+    }
+
+    // calculate team score here
+
+    for (var team in teams){
+      var row = document.createElement("tr");
+      var teamName = document.createElement("td");
+      $(teamName).text(team);
+      var players = document.createElement("td");
+      var playerNames = "";
+      for (var i = 0; i < teams[team].players.length; i++){
+        playerNames += teams[team].players[i] + ", ";
+      }
+      playerNames = playerNames.substring(0, playerNames.length - 2);
+      $(players).text(playerNames);
+
+      var scoreValue = 0;
+      for(var i = 0; i < currentGame.moves.length; i++){
+        var move = currentGame.moves[i];
+        console.log(move);
+        if (move.type == "tiles" && teams[team].playerIndexes.includes(parseInt(move.playerIndex))){
+          scoreValue += move.tilesPlayed.length;
+        }
+      }
+
+      var score = document.createElement("td");
+      $(score).text(scoreValue);
+
+      $(row).append(teamName);
+      $(row).append(players);
+      $(row).append(score);
+      $("#score-table").append(row);
+    }
+  }
+
+  $.post("/getGameData", function(currentGame){
+    drawGameBoard(currentGame);
+    drawScoreBoard(currentGame);
+  });
+
+  setInterval(function(){
+    $.post("/getGameData", function(currentGame){
+      console.log(currentGame);
+      drawGameBoard(currentGame);
+      drawScoreBoard(currentGame);
+    });
+  }, 2000);
+
+
+
+});
+
+
+
+
+
+
+</script>
+</html>
